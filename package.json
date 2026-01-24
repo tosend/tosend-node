@@ -1,0 +1,54 @@
+{
+  "name": "tosend",
+  "version": "1.0.0",
+  "description": "Official Node.js SDK for the ToSend email API",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "email",
+    "api",
+    "tosend",
+    "transactional",
+    "mail",
+    "smtp"
+  ],
+  "author": "ToSend <support@tosend.com>",
+  "license": "MIT",
+  "homepage": "https://tosend.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tosend/tosend-node.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tosend/tosend-node/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}
