@@ -303,7 +303,7 @@ export class ToSend {
 
       clearTimeout(timeoutId);
 
-      const data = await response.json() as T & { message?: string; errors?: Record<string, unknown> };
+      const data = await response.json() as T & { message?: string; errors?: Record<string, Record<string, string>> };
 
       if (!response.ok) {
         throw new ToSendError(
