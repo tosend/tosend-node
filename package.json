@@ -1,5 +1,5 @@
 {
-  "name": "tosend",
+  "name": "@tosend/node",
   "version": "1.0.0",
   "description": "Official Node.js SDK for the ToSend email API",
   "main": "dist/index.js",
