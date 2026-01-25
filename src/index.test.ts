@@ -153,6 +153,7 @@ describe('ToSendError', () => {
     expect(error.message).toBe('Something went wrong');
     expect(error.code).toBe(0);
     expect(error.errors).toEqual({});
+    expect(error.errorType).toBe('internal_error');
   });
 
   it('creates error with code and errors', () => {
@@ -162,6 +163,22 @@ describe('ToSendError', () => {
     expect(error.message).toBe('Validation failed');
     expect(error.code).toBe(422);
     expect(error.errors).toEqual(errors);
+    expect(error.errorType).toBe('validation_error');
+  });
+
+  it('creates error with explicit errorType', () => {
+    const error = new ToSendError('Custom error', 400, {}, 'bad_request');
+    expect(error.errorType).toBe('bad_request');
+  });
+
+  it('auto-maps error type from status code', () => {
+    expect(new ToSendError('', 400).errorType).toBe('bad_request');
+    expect(new ToSendError('', 401).errorType).toBe('unauthorized');
+    expect(new ToSendError('', 403).errorType).toBe('forbidden');
+    expect(new ToSendError('', 404).errorType).toBe('not_found');
+    expect(new ToSendError('', 422).errorType).toBe('validation_error');
+    expect(new ToSendError('', 429).errorType).toBe('rate_limit_exceeded');
+    expect(new ToSendError('', 500).errorType).toBe('internal_error');
   });
 
   it('isValidationError returns true for 422', () => {
@@ -169,6 +186,11 @@ describe('ToSendError', () => {
     expect(error.isValidationError).toBe(true);
     expect(error.isAuthenticationError).toBe(false);
     expect(error.isRateLimitError).toBe(false);
+  });
+
+  it('isValidationError returns true for validation_error type', () => {
+    const error = new ToSendError('Validation failed', 0, {}, 'validation_error');
+    expect(error.isValidationError).toBe(true);
   });
 
   it('isAuthenticationError returns true for 401', () => {
@@ -182,8 +204,18 @@ describe('ToSendError', () => {
     expect(error.isAuthenticationError).toBe(true);
   });
 
+  it('isAuthenticationError returns true for unauthorized/forbidden types', () => {
+    expect(new ToSendError('', 0, {}, 'unauthorized').isAuthenticationError).toBe(true);
+    expect(new ToSendError('', 0, {}, 'forbidden').isAuthenticationError).toBe(true);
+  });
+
   it('isRateLimitError returns true for 429', () => {
     const error = new ToSendError('Too many requests', 429);
+    expect(error.isRateLimitError).toBe(true);
+  });
+
+  it('isRateLimitError returns true for rate_limit_exceeded type', () => {
+    const error = new ToSendError('', 0, {}, 'rate_limit_exceeded');
     expect(error.isRateLimitError).toBe(true);
   });
 });
@@ -293,6 +325,8 @@ describe('API requests', () => {
       status: 403,
       json: () =>
         Promise.resolve({
+          status_code: 403,
+          error_type: 'forbidden',
           message: 'Invalid API key',
           errors: { api_key: { invalid: 'The API key is invalid' } },
         }),
@@ -306,5 +340,32 @@ describe('API requests', () => {
         html: '<p>Hi</p>',
       })
     ).rejects.toThrow(ToSendError);
+  });
+
+  it('parses error_type from API response', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 422,
+      json: () =>
+        Promise.resolve({
+          status_code: 422,
+          error_type: 'validation_error',
+          message: 'Validation failed',
+          errors: { subject: { required: 'Subject is required' } },
+        }),
+    });
+
+    try {
+      await client.send({
+        from: { email: 'sender@example.com' },
+        to: [{ email: 'test@example.com' }],
+        subject: 'Test',
+        html: '<p>Hi</p>',
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToSendError);
+      expect((error as ToSendError).errorType).toBe('validation_error');
+      expect((error as ToSendError).code).toBe(422);
+    }
   });
 });

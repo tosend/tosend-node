@@ -79,10 +79,20 @@ export interface AccountInfo {
 }
 
 export interface ToSendErrorResponse {
-  error_code: number;
+  status_code: number;
+  error_type: ErrorType;
   message: string;
   errors?: Record<string, Record<string, string>>;
 }
+
+export type ErrorType =
+  | 'bad_request'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'not_found'
+  | 'validation_error'
+  | 'rate_limit_exceeded'
+  | 'internal_error';
 
 export interface ToSendConfig {
   /** Your ToSend API key */
@@ -99,29 +109,46 @@ export interface ToSendConfig {
 
 export class ToSendError extends Error {
   readonly code: number;
+  readonly errorType: ErrorType;
   readonly errors: Record<string, Record<string, string>>;
+
+  private static readonly ERROR_TYPE_MAP: Record<number, ErrorType> = {
+    400: 'bad_request',
+    401: 'unauthorized',
+    403: 'forbidden',
+    404: 'not_found',
+    422: 'validation_error',
+    429: 'rate_limit_exceeded',
+  };
 
   constructor(
     message: string,
     code: number = 0,
-    errors: Record<string, Record<string, string>> = {}
+    errors: Record<string, Record<string, string>> = {},
+    errorType?: ErrorType
   ) {
     super(message);
     this.name = 'ToSendError';
     this.code = code;
     this.errors = errors;
+    this.errorType = errorType ?? ToSendError.ERROR_TYPE_MAP[code] ?? 'internal_error';
   }
 
   get isValidationError(): boolean {
-    return this.code === 422;
+    return this.errorType === 'validation_error' || this.code === 422;
   }
 
   get isAuthenticationError(): boolean {
-    return this.code === 401 || this.code === 403;
+    return (
+      this.errorType === 'unauthorized' ||
+      this.errorType === 'forbidden' ||
+      this.code === 401 ||
+      this.code === 403
+    );
   }
 
   get isRateLimitError(): boolean {
-    return this.code === 429;
+    return this.errorType === 'rate_limit_exceeded' || this.code === 429;
   }
 }
 
@@ -303,13 +330,18 @@ export class ToSend {
 
       clearTimeout(timeoutId);
 
-      const data = await response.json() as T & { message?: string; errors?: Record<string, Record<string, string>> };
+      const data = await response.json() as T & {
+        message?: string;
+        errors?: Record<string, Record<string, string>>;
+        error_type?: ErrorType;
+      };
 
       if (!response.ok) {
         throw new ToSendError(
           data.message ?? 'Unknown error',
           response.status,
-          data.errors ?? {}
+          data.errors ?? {},
+          data.error_type
         );
       }
 
