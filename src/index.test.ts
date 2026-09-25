@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ToSend, ToSendError } from './index';
+import { ToSend, ToSendAdmin, ToSendError } from './index';
 
 describe('ToSend', () => {
   describe('constructor', () => {
@@ -296,17 +296,26 @@ describe('API requests', () => {
       json: () =>
         Promise.resolve({
           account: {
-            title: 'Test Account',
-            plan_type: 'pro',
+            id: 142,
             status: 'active',
-            emails_usage_this_month: 1000,
-            emails_sent_last_24hrs: 50,
+            plan_type: 'pro',
+            credit_balance: 48750,
+            monthly_email_limit: 100000,
+            limit_per_second: 14,
+            ses_region: 'us-east-1',
+            bounce_rate: 0.012,
+            complaint_rate: 0.0003,
+            ses_status: 'healthy',
           },
           domains: [
             {
+              id: 88,
               domain_name: 'example.com',
               verification_status: 'verified',
-              created_at: '2024-01-01',
+              is_default: 1,
+              total_sent: 10,
+              total_bounced: 0,
+              total_complained: 0,
             },
           ],
         }),
@@ -314,7 +323,7 @@ describe('API requests', () => {
 
     const info = await client.getAccountInfo();
 
-    expect(info.account.title).toBe('Test Account');
+    expect(info.account.credit_balance).toBe(48750);
     expect(info.domains).toHaveLength(1);
     expect(info.domains[0].domain_name).toBe('example.com');
   });
@@ -367,5 +376,67 @@ describe('API requests', () => {
       expect((error as ToSendError).errorType).toBe('validation_error');
       expect((error as ToSendError).code).toBe(422);
     }
+  });
+});
+
+describe('ToSendAdmin', () => {
+  let mockFetch: ReturnType<typeof vi.fn>;
+
+  function reply(body: unknown, status = 200) {
+    mockFetch.mockResolvedValue({ ok: status < 400, status, json: () => Promise.resolve(body) });
+  }
+
+  beforeEach(() => {
+    mockFetch = vi.fn();
+    global.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('refuses a sending key at construction', () => {
+    expect(() => new ToSendAdmin('tsend_abc')).toThrow(/not an admin API key/);
+  });
+
+  it('sends X-Account-Id only from forAccount()', async () => {
+    const admin = new ToSendAdmin('tsend_admin_abc');
+    reply({ data: { account: {}, teams: [], credits_shared: true } });
+
+    await admin.listTeams();
+    expect(mockFetch.mock.calls[0][1].headers['X-Account-Id']).toBeUndefined();
+
+    await admin.forAccount(4203).listTeams();
+    expect(mockFetch.mock.calls[1][1].headers['X-Account-Id']).toBe('4203');
+  });
+
+  it('exposes the flat insufficient_scope error', async () => {
+    reply({ status_code: 403, message: 'no scope', errors: { code: 'insufficient_scope', required_scope: 'domains:read' } }, 403);
+
+    const err = await new ToSendAdmin('tsend_admin_abc').listDomains().catch((e) => e);
+    expect(err).toBeInstanceOf(ToSendError);
+    expect(err.code).toBe(403);
+    expect(err.errors.code).toBe('insufficient_scope');
+    expect(err.errors.required_scope).toBe('domains:read');
+  });
+
+  it('pages sending keys and encodes the suppression email', async () => {
+    const admin = new ToSendAdmin('tsend_admin_abc');
+    reply({ data: [], total: 0, page: 2, per_page: 50 });
+    const page = await admin.listSendingKeys({ page: 2, per_page: 50 });
+    expect(mockFetch.mock.calls[0][0]).toBe('https://api.tosend.com/v2/api-keys?page=2&per_page=50');
+    expect(page.page).toBe(2);
+
+    reply({ deleted: true, message: 'ok', used_today: 1, remaining_today: 499, daily_limit: 500 });
+    const res = await admin.deleteSuppression('a+b@example.com');
+    expect(mockFetch.mock.calls[1][0]).toBe('https://api.tosend.com/v2/suppressions?email=a%2Bb%40example.com');
+    expect(res.remaining_today).toBe(499);
+  });
+
+  it('reads the key and its scopes from getInfo()', async () => {
+    reply({ account: { id: 1 }, key: { id: 9, type: 'admin', acting_on: 1, owned_by: 1, scopes: ['teams:read'] } });
+    const info = await new ToSendAdmin('tsend_admin_abc').getInfo();
+    expect(mockFetch.mock.calls[0][0]).toBe('https://api.tosend.com/v2/info');
+    expect(info.key.scopes).toEqual(['teams:read']);
   });
 });

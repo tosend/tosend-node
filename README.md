@@ -110,14 +110,45 @@ response.results.forEach((result) => {
 ```typescript
 const info = await tosend.getAccountInfo();
 
-console.log(info.account.title);
-console.log(info.account.emails_usage_this_month);
-console.log(info.account.emails_sent_last_24hrs);
+console.log(info.account.status);          // 'active'
+console.log(info.account.credit_balance);  // null = no credit limit
+console.log(info.account.limit_per_second);
 
 info.domains.forEach((domain) => {
   console.log(domain.domain_name, domain.verification_status);
 });
 ```
+
+## Admin API
+
+`ToSendAdmin` is a separate client for the [Admin API](https://tosend.com/docs/api/admin-api). It takes an admin key (`tsend_admin_...`) and refuses a sending key at construction. Each call needs the matching [scope](https://tosend.com/docs/api/admin-api#scopes) on the key.
+
+```typescript
+import { ToSendAdmin } from 'tosend';
+
+const admin = new ToSendAdmin(process.env.TOSEND_ADMIN_KEY!);
+
+// Act on one of your client teams (sends X-Account-Id)
+const client = admin.forAccount(4203);
+
+const domain = await client.createDomain('client.example.com');
+const detail = await client.getDomain(domain.id);
+console.log(detail.dns_records.dkim); // show these records to your client
+
+// Needs api_keys:write and emails:send
+const key = await client.createSendingKey('Client: Acme Corp');
+console.log(key.api_key); // returned once, store it now
+
+// Needs emails:send
+await client.send({
+  from: { email: 'hello@client.example.com' },
+  to: [{ email: 'user@example.com' }],
+  subject: 'Hi',
+  html: '<p>Hello</p>',
+});
+```
+
+Also available: `getInfo` (checks the key and lists its scopes), `listDomains`, `deleteDomain`, `listEmails`, `getEmail`, `listSuppressions`, `deleteSuppression`, `listWebhooks`, `createWebhook`, `updateWebhook`, `deleteWebhook`, `listSendingKeys`, `deleteSendingKey`, `listTeams`, `createTeam`, `updateTeam` and `batch`. List methods take `page` and `per_page` and return `{ data, total, page, per_page }`.
 
 ## Configuration
 
