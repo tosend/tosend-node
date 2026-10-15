@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-10-15
+
+### Added
+
+- `Attachment.content_id`: embeds the file inline, referenced from the HTML as `cid:<content_id>`.
+- `ToSendAdmin#createTeam(name, { ses_region })`: create a team in `'eu-central-1'` (default `'us-east-1'`). `TeamList` teams now carry `ses_region`.
+
+### Changed
+
+- `AccountInfo.bounce_rate` and `complaint_rate` are now optional and deprecated. `GET /v2/info` no longer returns them to a sending key (they always read `0` there). `ToSendAdmin#getInfo()` returns the real 30-day rates.
+
 ## [1.1.0] - 2026-09-26
 
 ### Added

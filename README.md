@@ -76,6 +76,27 @@ const response = await tosend.send({
 });
 ```
 
+### Inline Images
+
+Give an attachment a `content_id` and reference it from the HTML with `cid:`:
+
+```typescript
+await tosend.send({
+  from: { email: 'hello@yourdomain.com' },
+  to: [{ email: 'user@example.com' }],
+  subject: 'Welcome',
+  html: '<img src="cid:logo@yourdomain.com" alt="Logo">',
+  attachments: [
+    {
+      type: 'image/png',
+      name: 'logo.png',
+      content: fs.readFileSync('logo.png').toString('base64'),
+      content_id: 'logo@yourdomain.com',
+    },
+  ],
+});
+```
+
 ### Batch Sending
 
 Send multiple emails in a single request:
@@ -148,7 +169,7 @@ await client.send({
 });
 ```
 
-Also available: `getInfo` (checks the key and lists its scopes), `listDomains`, `deleteDomain`, `listEmails`, `getEmail`, `listSuppressions`, `deleteSuppression`, `listWebhooks`, `createWebhook`, `updateWebhook`, `deleteWebhook`, `listSendingKeys`, `deleteSendingKey`, `listTeams`, `createTeam`, `updateTeam` and `batch`. List methods take `page` and `per_page` and return `{ data, total, page, per_page }`.
+Also available: `getInfo` (checks the key and lists its scopes), `listDomains`, `deleteDomain`, `listEmails`, `getEmail`, `listSuppressions`, `deleteSuppression`, `listWebhooks`, `createWebhook`, `updateWebhook`, `deleteWebhook`, `listSendingKeys`, `deleteSendingKey`, `listTeams`, `createTeam` (`createTeam('Acme', { ses_region: 'eu-central-1' })` for an EU team; the region can't be changed later), `updateTeam` and `batch`. List methods take `page` and `per_page` and return `{ data, total, page, per_page }`.
 
 ## Configuration
 

@@ -234,6 +234,22 @@ describe('API requests', () => {
     vi.restoreAllMocks();
   });
 
+  it('passes an attachment content_id through for inline images', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ message_id: 'abc123' }) });
+
+    await client.send({
+      from: { email: 'sender@example.com' },
+      to: [{ email: 'recipient@example.com' }],
+      subject: 'Inline',
+      html: '<img src="cid:logo@example.com">',
+      attachments: [{ type: 'image/png', name: 'logo.png', content: 'cG5n', content_id: 'logo@example.com' }],
+    });
+
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).attachments).toEqual([
+      { type: 'image/png', name: 'logo.png', content: 'cG5n', content_id: 'logo@example.com' },
+    ]);
+  });
+
   it('sends email successfully', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
@@ -303,8 +319,6 @@ describe('API requests', () => {
             monthly_email_limit: 100000,
             limit_per_second: 14,
             ses_region: 'us-east-1',
-            bounce_rate: 0.012,
-            complaint_rate: 0.0003,
             ses_status: 'healthy',
           },
           domains: [
@@ -408,6 +422,18 @@ describe('ToSendAdmin', () => {
 
     await admin.forAccount(4203).listTeams();
     expect(mockFetch.mock.calls[1][1].headers['X-Account-Id']).toBe('4203');
+  });
+
+  it('createTeam sends ses_region only when given', async () => {
+    const admin = new ToSendAdmin('tsend_admin_abc');
+    reply({ data: { id: 8, name: 'Clients EU', status: 'active', ses_region: 'eu-central-1' } });
+
+    const team = await admin.createTeam('Clients EU', { ses_region: 'eu-central-1' });
+    await admin.createTeam('Clients');
+
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({ name: 'Clients EU', ses_region: 'eu-central-1' });
+    expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({ name: 'Clients' });
+    expect(team.ses_region).toBe('eu-central-1');
   });
 
   it('exposes the flat insufficient_scope error', async () => {

@@ -21,6 +21,8 @@ export interface Attachment {
   name: string;
   /** Base64 encoded content */
   content: string;
+  /** Embeds the file inline: reference it in the HTML as `cid:<content_id>` */
+  content_id?: string;
 }
 
 export interface SendEmailParams {
@@ -82,10 +84,10 @@ export interface AccountInfo {
     monthly_email_limit: number;
     limit_per_second: number;
     ses_region: string;
-    /** Fraction between 0 and 1, not a percentage */
-    bounce_rate: number;
-    /** Fraction between 0 and 1, not a percentage */
-    complaint_rate: number;
+    /** @deprecated Not returned to a sending key. Use `new ToSendAdmin(key).getInfo()`. */
+    bounce_rate?: number;
+    /** @deprecated Not returned to a sending key. Use `new ToSendAdmin(key).getInfo()`. */
+    complaint_rate?: number;
     ses_status: string;
   };
   domains: Domain[];
@@ -544,7 +546,9 @@ export interface AdminInfo {
     credits_shared: boolean;
     limit_per_second: number;
     ses_region: string;
+    /** Last 30 days, fraction between 0 and 1 (0.004 = 0.4%) */
     bounce_rate: number;
+    /** Last 30 days, fraction between 0 and 1 */
     complaint_rate: number;
   };
   key: {
@@ -569,9 +573,12 @@ export interface SuppressionReactivation {
   daily_limit: number;
 }
 
+/** Where a team sends from. Fixed for the life of the team. */
+export type SesRegion = 'us-east-1' | 'eu-central-1';
+
 export interface TeamList {
   account: { id: number; name: string | null; status: string; credit_balance: number | null };
-  teams: Array<{ id: number; name: string | null; status: string }>;
+  teams: Array<{ id: number; name: string | null; status: string; ses_region: SesRegion }>;
   /** Credits pool at the parent; child teams have no separate balance */
   credits_shared: boolean;
 }
@@ -799,9 +806,17 @@ export class ToSendAdmin {
     return res.data;
   }
 
-  /** Only the parent account can create teams. */
-  async createTeam(name: string): Promise<{ id: number; name: string; status: string }> {
-    const res = await this.request<{ data: any }>('POST', '/v2/teams', { name });
+  /**
+   * Only the parent account can create teams. `ses_region` defaults to
+   * 'us-east-1' and cannot be changed once the team exists.
+   */
+  async createTeam(
+    name: string,
+    options: { ses_region?: SesRegion } = {},
+  ): Promise<{ id: number; name: string; status: string; ses_region: SesRegion }> {
+    const body: Record<string, unknown> = { name };
+    if (options.ses_region) body.ses_region = options.ses_region;
+    const res = await this.request<{ data: any }>('POST', '/v2/teams', body);
     return res.data;
   }
 
